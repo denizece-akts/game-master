@@ -1,0 +1,34 @@
+{
+  "desc_csv_path_full": "/home/ubuntu/Desktop/Umut/TransformerEnv/sprint2_demo/data/games_description.csv",
+  "reviews_csv_path_full": "/home/ubuntu/Desktop/Umut/TransformerEnv/sprint2_demo/data/steam_game_reviews.csv",
+
+  "desc_csv_path": "games_description__TOP10_GAMES.csv",
+  "reviews_csv_path": "steam_game_reviews__TOP10_GAMES.csv",
+
+  "output_dir": "/home/ubuntu/Desktop/Umut/TransformerEnv/sprint2_demo/artifacts/",
+  "artifact_prefix": "steam_reviews_demo",
+  "topN_for_subset": 10,
+
+  "embedding_model": "BAAI/bge-small-en-v1.5",
+  "llm_model": "meta-llama/Llama-3.2-3B-Instruct",
+  "embedding_batch_size": 64,
+  "normalize_embeddings": true,
+
+  "top_k_games": 3,
+  "top_k_reviews": 10,
+
+  "llm_max_new_tokens": 512,
+  "llm_temperature": 0.2,
+  "use_4bit": true,
+  "use_8bit": false,
+
+  "system_instruction": "You are a game-data assistant for a single dataset. Answer only the latest question. Use ONLY the provided RAG context for facts. When asked for suggestions, recommend titles strictly based on Ratings/Reviews in the RAG chunks and name the titles. Keep answers brief—maximum 3 sentences. If the needed info isn’t in the context, answer exactly: “I don’t know.”",
+  "context_template": "You are given {n} retrieved chunks from the dataset.\n\n{context}",
+
+  "alpha_games": 1.0,
+  "mix_reviews": [0.7, 0.3],
+
+  "seed": 42,
+
+  "hf_token": ""
+}
