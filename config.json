@@ -21,5 +21,6 @@
   "alpha_games": 1.0,
   "mix_reviews": [0.7, 0.3],
   "seed": 42,
-  "hf_token": ""
+  "hf_token": "",
+  "openai_api_key": ""
 }
