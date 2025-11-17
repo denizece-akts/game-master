@@ -127,25 +127,124 @@ class RAGEngine:
         D, I = self._faiss_search(self.rev_index, mix, k_probe)
 
         total_needed = CONFIG["top_k_reviews"]
-        allowed_keys = {hit["row"]["_game_key"] for hit in selected_games}
-        out, seen = [], set()
-        for rid in I:
+        if total_needed <= 0:
+            return []
+
+        games_info = []
+        allowed_keys = set()
+        for hit in selected_games:
+            row = hit["row"]
+            gk = row.get("_game_key", "")
+            if not gk:
+                continue
+            score = max(float(hit.get("score", 0.0)), 0.0)
+            games_info.append({"key": gk, "score": score})
+            allowed_keys.add(gk)
+
+        if not games_info:
+            return []
+
+        candidates = []
+        per_game_candidates = {g["key"]: [] for g in games_info}
+        seen_rid = set()
+
+        for rid, score in zip(I, D):
             if rid < 0:
                 continue
             if 0 <= rid < len(self.reviews_df):
+                if rid in seen_rid:
+                    continue
                 rv = self.reviews_df.iloc[int(rid)]
                 gk = rv.get("_game_key", "")
-                if gk in allowed_keys and rid not in seen:
-                    seen.add(rid)
-                    out.append({"row_index": int(rid), "row": rv})
-                    if len(out) >= total_needed:
-                        break
-        return out
+                if gk not in allowed_keys:
+                    continue
+                seen_rid.add(rid)
+                hit = {
+                    "row_index": int(rid),
+                    "row": rv,
+                    "score": float(score),
+                    "game_key": gk,
+                }
+                candidates.append(hit)
+                per_game_candidates[gk].append(hit)
+
+        if not candidates:
+            return []
+
+        games_with_candidates = [
+            g for g in games_info if per_game_candidates.get(g["key"])
+        ]
+        if not games_with_candidates:
+            return []
+
+        num_games_eff = len(games_with_candidates)
+
+        base_from_ratio = total_needed // num_games_eff
+        min_per_game = max(3, base_from_ratio)
+        if min_per_game * num_games_eff > total_needed:
+            min_per_game = max(1, total_needed // num_games_eff)
+
+        base_slots = min_per_game
+        remaining = total_needed - base_slots * num_games_eff
+
+        scores = [g["score"] for g in games_with_candidates]
+        total_score = sum(scores)
+        extra_slots = [0] * num_games_eff
+        if remaining > 0:
+            if total_score <= 0:
+                order = list(range(num_games_eff))
+            else:
+                order = sorted(range(num_games_eff), key=lambda i: scores[i], reverse=True)
+            idx = 0
+            for _ in range(remaining):
+                extra_slots[order[idx]] += 1
+                idx = (idx + 1) % num_games_eff
+
+        per_game_quota = {}
+        for i, g in enumerate(games_with_candidates):
+            per_game_quota[g["key"]] = base_slots + extra_slots[i]
+
+        selected = []
+        used = set()
+        per_game_counts = {g["key"]: 0 for g in games_with_candidates}
+
+        for g in games_with_candidates:
+            gk = g["key"]
+            quota = per_game_quota.get(gk, 0)
+            cands = per_game_candidates.get(gk, [])
+            for hit in cands:
+                if len(selected) >= total_needed:
+                    break
+                rid = hit["row_index"]
+                if rid in used:
+                    continue
+                selected.append(hit)
+                used.add(rid)
+                per_game_counts[gk] += 1
+                if per_game_counts[gk] >= quota:
+                    break
+            if len(selected) >= total_needed:
+                break
+
+        if len(selected) < total_needed:
+            for hit in candidates:
+                if len(selected) >= total_needed:
+                    break
+                rid = hit["row_index"]
+                if rid in used:
+                    continue
+                selected.append(hit)
+                used.add(rid)
+                gk = hit["game_key"]
+                per_game_counts[gk] = per_game_counts.get(gk, 0) + 1
+
+        return selected
 
     def _format_game_card(self, grow: pd.Series, rank: int, score: float) -> str:
+        name = str(grow.get("name", ""))
+        header = f"[GAME {rank}] Name: {name} (score={score:.4f})"
         return (
-            f"[GAME {rank}] score={score:.4f}\n"
-            f"Name: {str(grow.get('name', ''))}\n"
+            f"{header}\n"
             f"Genres: {str(grow.get('genres_str', ''))}\n"
             f"Developer: {str(grow.get('developer', ''))}\n"
             f"Publisher: {str(grow.get('publisher', ''))}\n"
@@ -155,9 +254,15 @@ class RAGEngine:
             f"RecommendedReq: {clamp_chars(str(grow.get('recommend_system_requirement', '') or ''), 220)}\n"
         )
 
-    def _format_review_snip(self, rv: pd.Series, idx: int) -> str:
+    def _format_review_snip(self, hit, idx: int) -> str:
+        rv = hit["row"]
+        score = hit.get("score", None)
+        game_name = str(rv.get("game_name", ""))
+        header = f"[REVIEW {idx}] Game: {game_name}"
+        if score is not None and not (isinstance(score, float) and np.isnan(score)):
+            header += f" (score={score:.4f})"
         parts = [
-            f"[REVIEW {idx}] Game: {str(rv.get('game_name', ''))}",
+            header,
             f"Review: {clamp_sentences(str(rv.get('review', '') or ''), 3)}",
             f"Recommendation: {str(rv.get('recommendation', ''))}",
         ]
@@ -182,10 +287,26 @@ class RAGEngine:
 
     def format_two_stage_context(self, stage1_games, stage2_reviews) -> str:
         lines = []
+        game_keys_in_order = []
         for i, g in enumerate(stage1_games, start=1):
-            lines.append(self._format_game_card(g["row"], i, g["score"]))
-        for i, rh in enumerate(stage2_reviews, start=1):
-            lines.append(self._format_review_snip(rh["row"], i))
+            grow = g["row"]
+            gk = grow.get("_game_key", "")
+            game_keys_in_order.append(gk)
+            lines.append(self._format_game_card(grow, i, g["score"]))
+        if lines:
+            lines.append("")
+        grouped = {gk: [] for gk in game_keys_in_order}
+        for hit in stage2_reviews:
+            gk = hit.get("game_key", "")
+            if gk in grouped:
+                grouped[gk].append(hit)
+        idx = 1
+        for gk in game_keys_in_order:
+            hits = grouped.get(gk, [])
+            hits = sorted(hits, key=lambda h: h.get("score", 0.0), reverse=True)
+            for hit in hits:
+                lines.append(self._format_review_snip(hit, idx))
+                idx += 1
         return "\n".join(lines).strip()
 
     def build_messages(self, user_query: str, context_text: str):
