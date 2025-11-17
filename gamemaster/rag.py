@@ -161,10 +161,23 @@ class RAGEngine:
             f"Review: {clamp_sentences(str(rv.get('review', '') or ''), 3)}",
             f"Recommendation: {str(rv.get('recommendation', ''))}",
         ]
+
         hp = rv.get("hours_played", np.nan)
-        parts.append(f"Hours: {int(hp)}" if pd.notna(hp) else "")
+        if pd.notna(hp):
+            try:
+                hp_val = float(hp)
+                parts.append(f"Hours: {int(hp_val)}")
+            except Exception:
+                parts.append(f"Hours: {str(hp)}")
+
         hl = rv.get("helpful", np.nan)
-        parts.append(f"Helpful: {int(hl)}" if pd.notna(hl) else "")
+        if pd.notna(hl):
+            try:
+                hl_val = float(hl)
+                parts.append(f"Helpful: {int(hl_val)}")
+            except Exception:
+                parts.append(f"Helpful: {str(hl)}")
+
         return "\n".join([p for p in parts if p]) + "\n"
 
     def format_two_stage_context(self, stage1_games, stage2_reviews) -> str:
@@ -265,3 +278,4 @@ class RAGEngine:
             print("RETRIEVED CONTEXT (pre-wrapped inside <CONTEXT> in the prompt)")
             print("=" * 80)
             print(ctx_text)
+

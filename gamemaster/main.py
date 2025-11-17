@@ -2,7 +2,7 @@ import sys
 
 from gamemaster.config import DEVICE
 from gamemaster.utils import print_versions_and_checksums
-from gamemaster.embeddings import build_indices
+from gamemaster.embeddings import load_or_build_indices
 from gamemaster.llm import load_llm
 from gamemaster.rag import RAGEngine
 
@@ -11,8 +11,9 @@ def main():
     print(f"Device: {DEVICE}")
     print_versions_and_checksums()
 
-    emb_model, use_normalize, game_index, rev_index, games_unique, reviews_df = build_indices()
+    emb_model, use_normalize, game_index, rev_index, games_unique, reviews_df = load_or_build_indices()
     tokenizer, model = load_llm()
+
     engine = RAGEngine(
         emb_model=emb_model,
         use_normalize=use_normalize,
@@ -35,3 +36,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

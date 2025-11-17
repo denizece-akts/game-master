@@ -14,7 +14,7 @@ from .utils import (
 )
 
 
-def build_top10_subsets(desc_csv, reviews_csv, out_dir: Path, topN: int = 10):
+def build_topN_subsets(desc_csv, reviews_csv, out_dir: Path, topN: int = 10):
     desc = pd.read_csv(desc_csv)
     rev = pd.read_csv(reviews_csv)
 
@@ -37,21 +37,34 @@ def build_top10_subsets(desc_csv, reviews_csv, out_dir: Path, topN: int = 10):
     desc_top = desc[desc["_game_key"].isin(top_keys)].copy()
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    rev_top.to_csv(out_dir / "steam_game_reviews__TOP10_GAMES.csv", index=False)
-    desc_top.to_csv(out_dir / "games_description__TOP10_GAMES.csv", index=False)
+
+    desc_name = f"games_description__TOP{topN}_GAMES.csv"
+    reviews_name = f"steam_game_reviews__TOP{topN}_GAMES.csv"
+
+    desc_path = out_dir / desc_name
+    reviews_path = out_dir / reviews_name
+
+    desc_indices_name = desc_path.with_name(desc_path.stem + "_indices.csv").name
+    reviews_indices_name = reviews_path.with_name(reviews_path.stem + "_indices.csv").name
+
+    desc_indices_path = out_dir / desc_indices_name
+    reviews_indices_path = out_dir / reviews_indices_name
+
+    rev_top.to_csv(reviews_path, index=False)
+    desc_top.to_csv(desc_path, index=False)
 
     rev_top[["original_index_reviews"]].to_csv(
-        out_dir / "steam_game_reviews__TOP10_GAMES_indices.csv", index=False
+        reviews_indices_path, index=False
     )
     desc_top[["original_index_desc"]].to_csv(
-        out_dir / "games_description__TOP10_GAMES_indices.csv", index=False
+        desc_indices_path, index=False
     )
 
-    print("✅ Built TOP-10 subsets.")
-    return (
-        out_dir / "games_description__TOP10_GAMES.csv",
-        out_dir / "steam_game_reviews__TOP10_GAMES.csv",
-    )
+    print(f"✅ Built TOP-N subsets (N = {topN}).")
+    print("Descriptions subset:", desc_path)
+    print("Reviews subset:", reviews_path)
+
+    return desc_path, reviews_path
 
 
 def safe_read_csv(path):
@@ -69,7 +82,7 @@ def safe_read_csv(path):
 
 
 def load_data():
-    desc_p, rev_p = build_top10_subsets(
+    desc_p, rev_p = build_topN_subsets(
         CONFIG["desc_csv_path_full"],
         CONFIG["reviews_csv_path_full"],
         OUTPUT_DIR,
@@ -200,3 +213,4 @@ def load_data():
     print("Cleaned reviews_df:", reviews_df.shape)
 
     return games_df, reviews_df, desc_p, rev_p
+
