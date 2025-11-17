@@ -1,3 +1,4 @@
+import os
 import json
 from pathlib import Path
 
@@ -5,17 +6,57 @@ import faiss
 import numpy as np
 import pandas as pd
 import torch
+from huggingface_hub import snapshot_download
 from sentence_transformers import SentenceTransformer
 
-from .config import CONFIG, OUTPUT_DIR, DEVICE
-from .utils import clamp_sentences, clamp_chars, normalize_whitespace, _json_safe
-from .data import load_data
+from .config import CONFIG, OUTPUT_DIR, DEVICE, HF_TOKEN
+from .utils import (
+    clamp_sentences,
+    clamp_chars,
+    normalize_whitespace,
+    _json_safe,
+    sha256_file,
+)
+from .data import load_data, safe_read_csv
 
 
-def emb_encode(emb_model, texts, use_normalize: bool, bsz=64):
+def _ensure_local_embedding_model() -> str:
+    remote_id = CONFIG["embedding_model"]
+    local_dir = Path(CONFIG.get("embedding_local_dir", "./bge_model"))
+
+    if local_dir.exists() and any(local_dir.iterdir()):
+        print(f"Using existing embedding model dir: {local_dir}")
+        return str(local_dir)
+
+    print(f"Embedding model dir {local_dir} missing/empty, downloading from {remote_id}...")
+    local_dir.mkdir(parents=True, exist_ok=True)
+
+    token = HF_TOKEN or os.environ.get("HF_TOKEN", None)
+
+    snapshot_download(
+        repo_id=remote_id,
+        token=token,
+        local_dir=str(local_dir),
+    )
+
+    print("✅ Embedding model download complete.")
+    return str(local_dir)
+
+
+def _load_embedding_model() -> SentenceTransformer:
+    local_dir = _ensure_local_embedding_model()
+    print(f"Loading embedding model from: {local_dir}")
+    emb_model = SentenceTransformer(local_dir, device=DEVICE)
+    emb_model.max_seq_length = 512
+    return emb_model
+
+
+def emb_encode(emb_model: SentenceTransformer, texts, use_normalize: bool, bsz: int = 64):
     outs = []
     for i in range(0, len(texts), bsz):
         sub = texts[i : i + bsz]
+        if not sub:
+            continue
         with torch.inference_mode():
             v = emb_model.encode(
                 sub,
@@ -72,9 +113,8 @@ def make_game_texts(df_slice: pd.DataFrame):
 def build_indices():
     games_df, reviews_df, desc_path, reviews_path = load_data()
 
-    print("Loading embedding model (from HF cache):", CONFIG["embedding_model"])
-    emb_model = SentenceTransformer(CONFIG["embedding_model"], device=DEVICE)
-    emb_model.max_seq_length = 512
+    print("Loading embedding model:", CONFIG["embedding_model"])
+    emb_model = _load_embedding_model()
     use_normalize = CONFIG["normalize_embeddings"]
 
     rev_faiss_path = OUTPUT_DIR / f"{CONFIG['artifact_prefix']}_faiss.index"
@@ -90,7 +130,12 @@ def build_indices():
     game_index = faiss.IndexIDMap2(game_base)
 
     review_texts = make_review_texts(reviews_df)
-    R = emb_encode(emb_model, review_texts, use_normalize, bsz=CONFIG["embedding_batch_size"])
+    R = emb_encode(
+        emb_model,
+        review_texts,
+        use_normalize,
+        bsz=CONFIG["embedding_batch_size"],
+    )
     rev_ids = np.arange(len(R), dtype=np.int64)
     rev_index.add_with_ids(R, rev_ids)
     faiss.write_index(rev_index, str(rev_faiss_path))
@@ -98,7 +143,12 @@ def build_indices():
 
     games_unique = games_df.drop_duplicates(subset=["_game_key"]).reset_index(drop=True)
     game_texts = make_game_texts(games_unique)
-    G = emb_encode(emb_model, game_texts, use_normalize, bsz=CONFIG["embedding_batch_size"])
+    G = emb_encode(
+        emb_model,
+        game_texts,
+        use_normalize,
+        bsz=CONFIG["embedding_batch_size"],
+    )
     game_ids = np.arange(len(G), dtype=np.int64)
     game_index.add_with_ids(G, game_ids)
     faiss.write_index(game_index, str(game_faiss_path))
@@ -113,26 +163,126 @@ def build_indices():
 
     with open(game_idmap_path, "w", encoding="utf-8") as f:
         json.dump(
-            {"num_games": int(len(games_unique)), "faiss_to_rowpos": list(range(len(games_unique)))},
+            {
+                "num_games": int(len(games_unique)),
+                "faiss_to_rowpos": list(range(len(games_unique))),
+            },
             f,
         )
 
+    desc_full = Path(CONFIG["desc_csv_path_full"])
+    reviews_full = Path(CONFIG["reviews_csv_path_full"])
+    desc_checksum = sha256_file(desc_full)
+    reviews_checksum = sha256_file(reviews_full)
+
+    meta = {
+        "config_subset": {
+            "embedding_model": CONFIG["embedding_model"],
+            "normalize_embeddings": CONFIG["normalize_embeddings"],
+            "topN_for_subset": CONFIG["topN_for_subset"],
+        },
+        "desc_csv_path_used": str(desc_path),
+        "reviews_csv_path_used": str(reviews_path),
+        "source_paths": {
+            "desc_csv_full": str(desc_full),
+            "reviews_csv_full": str(reviews_full),
+        },
+        "source_checksums": {
+            "desc_csv_full": desc_checksum,
+            "reviews_csv_full": reviews_checksum,
+        },
+        "num_games_rows": int(len(games_df)),
+        "num_reviews_rows": int(len(reviews_df)),
+        "embedding_model": CONFIG["embedding_model"],
+        "llm_model": CONFIG["llm_model"],
+    }
+
     with open(rev_meta_path, "w", encoding="utf-8") as f:
-        json.dump(
-            _json_safe(
-                {
-                    "config": CONFIG,
-                    "desc_csv_path_used": str(desc_path),
-                    "reviews_csv_path_used": str(reviews_path),
-                    "num_games_rows": int(len(games_df)),
-                    "num_reviews_rows": int(len(reviews_df)),
-                    "embedding_model": CONFIG["embedding_model"],
-                    "llm_model": CONFIG["llm_model"],
-                }
-            ),
-            f,
-            indent=2,
-        )
+        json.dump(_json_safe(meta), f, indent=2)
 
     print("✅ Embeddings done & saved.")
     return emb_model, use_normalize, game_index, rev_index, games_unique, reviews_df
+
+
+def load_or_build_indices():
+    rev_faiss_path = OUTPUT_DIR / f"{CONFIG['artifact_prefix']}_faiss.index"
+    game_faiss_path = OUTPUT_DIR / f"{CONFIG['artifact_prefix']}_games_faiss.index"
+    games_unique_path = OUTPUT_DIR / f"{CONFIG['artifact_prefix']}_games_unique.parquet"
+    rev_meta_path = OUTPUT_DIR / f"{CONFIG['artifact_prefix']}_meta.json"
+
+    games_unique_csv_path = games_unique_path.with_suffix(".csv")
+
+    artifacts_exist = (
+        rev_faiss_path.exists()
+        and game_faiss_path.exists()
+        and rev_meta_path.exists()
+        and (games_unique_path.exists() or games_unique_csv_path.exists())
+    )
+
+    if not artifacts_exist:
+        print("Artifacts missing, rebuilding indices...")
+        return build_indices()
+
+    try:
+        with open(rev_meta_path, "r", encoding="utf-8") as f:
+            meta = json.load(f)
+    except Exception:
+        print("Meta file unreadable, rebuilding indices...")
+        return build_indices()
+
+    try:
+        source_paths = meta["source_paths"]
+        source_checksums = meta["source_checksums"]
+        cfg_sub = meta.get("config_subset", {})
+    except KeyError:
+        print("Meta file incomplete, rebuilding indices...")
+        return build_indices()
+
+    desc_full_cfg = CONFIG["desc_csv_path_full"]
+    reviews_full_cfg = CONFIG["reviews_csv_path_full"]
+
+    if (
+        source_paths.get("desc_csv_full") != desc_full_cfg
+        or source_paths.get("reviews_csv_full") != reviews_full_cfg
+    ):
+        print("Source CSV paths changed, rebuilding indices...")
+        return build_indices()
+
+    desc_full = Path(desc_full_cfg)
+    reviews_full = Path(reviews_full_cfg)
+    current_desc_checksum = sha256_file(desc_full)
+    current_reviews_checksum = sha256_file(reviews_full)
+
+    if (
+        current_desc_checksum != source_checksums.get("desc_csv_full")
+        or current_reviews_checksum != source_checksums.get("reviews_csv_full")
+    ):
+        print("Source CSV content changed, rebuilding indices...")
+        return build_indices()
+
+    if (
+        cfg_sub.get("embedding_model") != CONFIG["embedding_model"]
+        or cfg_sub.get("normalize_embeddings") != CONFIG["normalize_embeddings"]
+        or cfg_sub.get("topN_for_subset") != CONFIG["topN_for_subset"]
+    ):
+        print("Config affecting indices changed, rebuilding indices...")
+        return build_indices()
+
+    print("✅ Existing indices are up to date; loading from disk.")
+
+    rev_index = faiss.read_index(str(rev_faiss_path))
+    game_index = faiss.read_index(str(game_faiss_path))
+
+    if games_unique_path.exists():
+        games_unique = pd.read_parquet(games_unique_path)
+    else:
+        games_unique = pd.read_csv(games_unique_csv_path)
+
+    reviews_subset_path = Path(meta["reviews_csv_path_used"])
+    reviews_df = safe_read_csv(reviews_subset_path)
+
+    emb_model = _load_embedding_model()
+    use_normalize = CONFIG["normalize_embeddings"]
+
+    return emb_model, use_normalize, game_index, rev_index, games_unique, reviews_df
+

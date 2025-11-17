@@ -17,6 +17,7 @@ def load_config(path=None):
 
 CONFIG = load_config()
 HF_TOKEN = CONFIG.get("hf_token") or os.environ.get("HF_TOKEN", "")
+OPENAI_API_KEY = CONFIG.get("openai_api_key") or os.environ.get("OPENAI_API_KEY", "")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 OUTPUT_DIR = Path(CONFIG["output_dir"])
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -31,3 +32,4 @@ def set_seed(seed: int):
 
 
 set_seed(CONFIG["seed"])
+

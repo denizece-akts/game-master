@@ -1,7 +1,46 @@
+import os
+from pathlib import Path
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
+from huggingface_hub import snapshot_download
 
 from .config import CONFIG, HF_TOKEN, DEVICE
+
+
+def _ensure_local_model():
+    remote_id = CONFIG["llm_model"]
+    local_dir = Path(CONFIG.get("llm_local_dir", "./llm_model"))
+
+    if local_dir.exists() and any(local_dir.iterdir()):
+        print(f"Using existing local model dir: {local_dir}")
+        return str(local_dir)
+
+    print(f"Local model dir {local_dir} missing/empty, downloading from {remote_id}...")
+    local_dir.mkdir(parents=True, exist_ok=True)
+
+    token = HF_TOKEN or os.environ.get("HF_TOKEN", None)
+    if not token:
+        raise RuntimeError(
+            "No HF token found. Set 'hf_token' in config.json or export HF_TOKEN in the environment."
+        )
+
+    snapshot_download(
+        repo_id=remote_id,
+        token=token,
+        local_dir=str(local_dir),
+        allow_patterns=[
+            "*.safetensors",
+            "*.json",
+            "tokenizer.*",
+            "*.model",
+            "*.txt",
+            "*.py",
+        ],
+        ignore_patterns=["original/*"],
+    )
+
+    print("✅ Download complete.")
+    return str(local_dir)
 
 
 def load_llm():
@@ -24,22 +63,30 @@ def load_llm():
     else:
         load_kwargs["torch_dtype"] = torch.float16
 
-    print("Loading LLM (from HF cache):", CONFIG["llm_model"])
+    model_path = _ensure_local_model()
+
+    print("Loading LLM from:", model_path)
+    token = HF_TOKEN or os.environ.get("HF_TOKEN", None)
+
     tokenizer = AutoTokenizer.from_pretrained(
-        CONFIG["llm_model"], use_fast=True, token=HF_TOKEN
+        model_path,
+        use_fast=True,
+        token=token,
     )
     if tokenizer.pad_token_id is None and tokenizer.eos_token_id is not None:
         tokenizer.pad_token = tokenizer.eos_token
 
     model = AutoModelForCausalLM.from_pretrained(
-        CONFIG["llm_model"],
+        model_path,
         trust_remote_code=False,
-        token=HF_TOKEN,
+        token=token,
         **load_kwargs,
     ).eval()
+
     try:
         model = model.to(DEVICE)
         model.generation_config.use_cache = True
     except Exception as e:
         print("Note: could not enable use_cache tweak:", e)
+
     return tokenizer, model
