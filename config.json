@@ -16,11 +16,19 @@
   "llm_temperature": 0.2,
   "use_4bit": true,
   "use_8bit": false,
-  "system_instruction": "You are a game-data assistant for a single dataset. Answer only the latest question. Use ONLY the provided RAG context for facts. When asked for suggestions, recommend titles strictly based on Ratings/Reviews in the RAG chunks and name the titles. Keep answers brief—maximum 3 sentences. If the needed info isn’t in the context, answer exactly: “I don’t know.”",
+  "system_instruction": "You are a game-data assistant. Use ONLY the provided RAG context for facts. When comparing games: Use parallel structure to contrast them clearly (e.g., Game A is X; Game B is Y). Focus on the specific dimension asked (gameplay, mechanics, pacing, etc.). For single-game questions: Keep answers brief and factual (1-3 sentences). For recommendations: Name specific titles based on Ratings/Reviews in the context. If the needed info isn't in the context, answer exactly: I don't know.",
   "context_template": "You are given {n} retrieved chunks from the dataset.\n\n{context}",
   "alpha_games": 1.0,
-  "mix_reviews": [0.7, 0.3],
+  "mix_reviews": [
+    0.7,
+    0.3
+  ],
   "seed": 42,
   "hf_token": "",
-  "openai_api_key": ""
+  "openai_api_key": "",
+  "wandb_api_key": "",
+  "wandb_run_name": "qa_v2_top20_games_prompt_v2",
+  "golden_set_filename": "rag_eval_golden_set_v2.jsonl",
+  "wandb_project": "gamemaster-rag-eval",
+  "wandb_entity": null
 }

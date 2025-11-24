@@ -1,0 +1,130 @@
+import json
+
+from .config import OUTPUT_DIR
+
+
+EVAL_QA = [
+    {
+        "query": "Which game features impostors and crewmates completing tasks in a social deception setting?",
+        "expected_response": "Among Us—multiplayer deduction game where crewmates finish tasks while impostors sabotage and eliminate others.",
+        "relevant_games": ["Among Us"]
+    },
+    {
+        "query": "Which game is best known for realistic trucking across U.S. highways?",
+        "expected_response": "American Truck Simulator—detailed driving sim focused on hauling cargo and managing your trucking business.",
+        "relevant_games": ["American Truck Simulator"]
+    },
+    {
+        "query": "Which game features impostors and crewmates completing tasks in a social deception setting?",
+        "expected_response": "Among Us—multiplayer deduction game where crewmates finish tasks while impostors sabotage and eliminate others.",
+        "relevant_games": ["Among Us"]
+    },
+    {
+        "query": "Which game is best known for realistic trucking across U.S. highways?",
+        "expected_response": "American Truck Simulator—detailed driving sim focused on hauling cargo and managing your trucking business.",
+        "relevant_games": ["American Truck Simulator"]
+    },
+    {
+        "query": "Name a fantasy board-game-style digital adaptation with anthropomorphic heroes.",
+        "expected_response": "Armello—a turn-based strategy and card game mixing board game mechanics with animal kingdoms.",
+        "relevant_games": ["Armello"]
+    },
+    {
+        "query": "Which game lets players raise dinosaurs and build bases on dangerous islands?",
+        "expected_response": "ARK: Survival Evolved—open-world survival with taming, crafting, and prehistoric creatures.",
+        "relevant_games": ["ARK: Survival Evolved"]
+    },
+    {
+        "query": "What downhill biking game challenges players with procedurally generated tracks?",
+        "expected_response": "Descenders—fast-paced mountain biking game with physics-driven tricks and randomized courses.",
+        "relevant_games": ["Descenders"]
+    },
+    {
+        "query": "Which game has procedurally generated caves full of minerals and alien creatures?",
+        "expected_response": "Deep Rock Galactic—co-op FPS where space dwarves mine and fight in dangerous cave systems.",
+        "relevant_games": ["Deep Rock Galactic"]
+    },
+    {
+        "query": "Name 3 games that can be played competitively or cooperatively.",
+        "expected_response": "Among Us, Arma 3, and 7 Days to Die all support competitive or co-op play depending on mode or setup.",
+        "relevant_games": ["Among Us", "Arma 3", "7 Days to Die"]
+    },
+    {
+        "query": "Which game features base defense against zombie hordes every seven nights?",
+        "expected_response": "7 Days to Die—open-world survival and crafting game centered on fortifying bases for the blood moon.",
+        "relevant_games": ["7 Days to Die"]
+    },
+    {
+        "query": "If I want to practice FPS aim and reflexes, which game should I choose?",
+        "expected_response": "Aimlabs—aim training simulator designed to improve shooting accuracy and reaction time.",
+        "relevant_games": ["Aimlabs"]
+    },
+    {
+        "query": "Name a real-time strategy classic with medieval factions and castle building.",
+        "expected_response": "Age of Empires II (Retired)—RTS staple with resource management, empire building, and historic campaigns.",
+        "relevant_games": ["Age of Empires II", "Age of Empires II (Retired)"]
+    },
+    {
+        "query": "Which game combines survival crafting with voxel-based building and zombies?",
+        "expected_response": "7 Days to Die—mixes FPS combat, crafting, and base construction in a post-apocalyptic world.",
+        "relevant_games": ["7 Days to Die"]
+    },
+    {
+        "query": "What game best simulates logistics and long-haul transport realism?",
+        "expected_response": "American Truck Simulator—meticulous driving, fuel management, and road rules across U.S. states.",
+        "relevant_games": ["American Truck Simulator"]
+    },
+    {
+        "query": "Name 2 games that take place in procedurally generated environments.",
+        "expected_response": "Deep Rock Galactic and Descenders both use procedural generation for unique levels each session.",
+        "relevant_games": ["Deep Rock Galactic", "Descenders"]
+    },
+    {
+        "query": "Which game lets players pilot tanks, aircraft, and other military vehicles in sandbox warfare?",
+        "expected_response": "Arma 3—tactical military simulation with extensive vehicle and combined-arms gameplay.",
+        "relevant_games": ["Arma 3"]
+    },
+    {
+        "query": "Name 3 games that include crafting systems.",
+        "expected_response": "7 Days to Die, ARK: Survival Evolved, and Deep Rock Galactic all use crafting as a core mechanic.",
+        "relevant_games": ["7 Days to Die", "ARK: Survival Evolved", "Deep Rock Galactic"]
+    },
+    {
+        "query": "Which two games offer first-person mining or digging gameplay?",
+        "expected_response": "Deep Rock Galactic (space mining) and 7 Days to Die (resource mining for survival).",
+        "relevant_games": ["Deep Rock Galactic", "7 Days to Die"]
+    },
+    {
+        "query": "Name a game that is purely about improving player skill rather than world exploration.",
+        "expected_response": "Aimlabs—focused entirely on aim and reflex training without a traditional game world.",
+        "relevant_games": ["Aimlabs"]
+    },
+    {
+        "query": "Which game is known for its community mods and large-scale multiplayer military operations?",
+        "expected_response": "Arma 3—supported by an active modding community and massive multiplayer scenarios.",
+        "relevant_games": ["Arma 3"]
+    },
+    {
+        "query": "If I want a game focused on tactical planning and teamwork in combat, which should I choose?",
+        "expected_response": "Arma 3—requires communication, coordination, and strategy for mission success.",
+        "relevant_games": ["Arma 3"]
+    },
+    {
+        "query": "Name 3 games that can be enjoyed solo or with friends in co-op mode.",
+        "expected_response": "Deep Rock Galactic, 7 Days to Die, and ARK: Survival Evolved all support solo or cooperative play.",
+        "relevant_games": ["Deep Rock Galactic", "7 Days to Die", "ARK: Survival Evolved"]
+    },
+]
+
+
+def main():
+    golden_path = OUTPUT_DIR / "rag_eval_golden_set_v1.jsonl"
+    with open(golden_path, "w", encoding="utf-8") as f:
+        for row in EVAL_QA:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    print("Golden set saved to:", golden_path)
+
+
+if __name__ == "__main__":
+    main()
+
