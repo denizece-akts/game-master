@@ -4,7 +4,8 @@ import pandas as pd
 from openai import OpenAI
 import torch
 import platform
-from .config import OUTPUT_DIR, OPENAI_API_KEY, DEVICE
+import wandb
+from .config import OUTPUT_DIR, OPENAI_API_KEY, DEVICE, WANDB_PROJECT, WANDB_ENTITY
 
 try:
     import psutil
@@ -122,6 +123,14 @@ def get_system_info():
 
 
 def main():
+    # Initialize W&B if not already initialized
+    if wandb.run is None:
+        wandb.init(
+            project=WANDB_PROJECT,
+            entity=WANDB_ENTITY,
+            name="rag_quality_eval",
+        )
+    
     results_jsonl_path = OUTPUT_DIR / "rag_eval_results_full.jsonl"
     results = []
     with open(results_jsonl_path, "r", encoding="utf-8") as f:
@@ -191,6 +200,34 @@ def main():
     print("  Mean retriever latency (s):", mean_ret)
     print("  P95  retriever latency (s):", p95_ret)
 
+    # Log quality metrics to W&B
+    wandb.log({
+        "quality/mean_answer_relevance": mean_ans_rel,
+        "quality/mean_context_relevance": mean_ctx_rel,
+        "quality/mean_groundedness": mean_ground,
+        "quality/mean_ground_truth_agreement": mean_gt_agree,
+    })
+    
+    # Create W&B table for quality results with ground truth
+    table_data = []
+    for r in scored_rows:
+        table_data.append([
+            r["id"],
+            r["query"],  # Full query (not truncated)
+            r["expected_response"],  # Ground truth answer
+            r["model_response"],  # Full model response (not truncated)
+            r["answer_relevance"],
+            r["context_relevance"],
+            r["groundedness"],
+            r["ground_truth_semantic_agreement"],
+        ])
+    
+    quality_table = wandb.Table(
+        columns=["ID", "Query", "Expected Response", "Model Response", "Answer Rel", "Context Rel", "Groundedness", "GT Agreement"],
+        data=table_data
+    )
+    wandb.log({"quality_results": quality_table})
+
     df_scores_no_ctx = df_scores.drop(columns=["prompt", "context"], errors="ignore")
     excel_path = OUTPUT_DIR / "rag_eval_results_no_prompt_context.xlsx"
 
@@ -211,6 +248,17 @@ def main():
     print("Compact Excel saved to:", excel_path)
 
     sys_info = get_system_info()
+    
+    # Log system info to W&B
+    wandb.config.update({
+        "system/os": f"{sys_info['os_name']} {sys_info['os_release']}",
+        "system/cpu": sys_info["cpu"],
+        "system/ram_gb": sys_info.get("ram_gb"),
+        "system/device": sys_info["device"],
+        "system/gpu": sys_info.get("gpu_name"),
+        "system/vram_gb": sys_info.get("vram_gb"),
+    })
+    
     summary_txt_path = OUTPUT_DIR / "rag_eval_final_summary.txt"
     lines = []
     lines.append("System Info")

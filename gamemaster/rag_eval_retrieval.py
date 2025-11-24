@@ -3,8 +3,9 @@ from time import perf_counter
 
 import pandas as pd
 import torch
+import wandb
 
-from .config import OUTPUT_DIR, CONFIG, DEVICE
+from .config import OUTPUT_DIR, CONFIG, DEVICE, GOLDEN_SET_PATH, WANDB_PROJECT, WANDB_ENTITY
 from .embeddings import load_or_build_indices
 from .llm import load_llm
 from .rag import RAGEngine
@@ -12,9 +13,8 @@ from .utils import make_game_key
 
 
 def load_eval_qa():
-    golden_path = OUTPUT_DIR / "rag_eval_golden_set.jsonl"
     qa = []
-    with open(golden_path, "r", encoding="utf-8") as f:
+    with open(GOLDEN_SET_PATH, "r", encoding="utf-8") as f:
         for line in f:
             qa.append(json.loads(line))
     return qa
@@ -91,6 +91,23 @@ def compute_recall_mrr(relevant_games, retrieved_game_names):
 
 
 def main():
+    # Initialize W&B if not already initialized
+    if wandb.run is None:
+        wandb.init(
+            project=WANDB_PROJECT,
+            entity=WANDB_ENTITY,
+            name=f"rag_eval_{GOLDEN_SET_PATH.stem}",
+            config={
+                "golden_set": GOLDEN_SET_PATH.name,
+                "top_k_games": CONFIG.get("top_k_games"),
+                "top_k_reviews": CONFIG.get("top_k_reviews"),
+                "llm_model": CONFIG.get("llm_model"),
+                "embedding_model": CONFIG.get("embedding_model"),
+                "llm_max_new_tokens": CONFIG.get("llm_max_new_tokens"),
+                "llm_temperature": CONFIG.get("llm_temperature"),
+            },
+        )
+    
     eval_qa = load_eval_qa()
     engine = load_engine()
     results = []
@@ -133,13 +150,53 @@ def main():
     print(" JSONL:", results_jsonl_path)
     print(" CSV  :", results_csv_path)
 
+    # Calculate aggregate metrics
+    mean_recall = df["retrieval_recall"].mean()
+    mean_mrr = df["retrieval_mrr"].mean()
+    mean_e2e = df["e2e_latency_sec"].mean()
+    p95_e2e = df["e2e_latency_sec"].quantile(0.95)
+    mean_ret = df["retriever_latency_sec"].mean()
+    p95_ret = df["retriever_latency_sec"].quantile(0.95)
+
     print("\nAggregate Retrieval metrics over all questions:")
-    print("  Mean Recall :", df["retrieval_recall"].mean())
-    print("  Mean MRR    :", df["retrieval_mrr"].mean())
+    print("  Mean Recall :", mean_recall)
+    print("  Mean MRR    :", mean_mrr)
 
     print("\nAggregate Latencies:")
-    print("  Mean end-to-end latency (s):", df["e2e_latency_sec"].mean())
-    print("  Mean retriever latency (s) :", df["retriever_latency_sec"].mean())
+    print("  Mean end-to-end latency (s):", mean_e2e)
+    print("  Mean retriever latency (s) :", mean_ret)
+
+    # Log metrics to W&B
+    wandb.log({
+        "retrieval/mean_recall": mean_recall,
+        "retrieval/mean_mrr": mean_mrr,
+        "latency/mean_e2e_sec": mean_e2e,
+        "latency/p95_e2e_sec": p95_e2e,
+        "latency/mean_retriever_sec": mean_ret,
+        "latency/p95_retriever_sec": p95_ret,
+    })
+    
+    # Create W&B table for detailed results with ground truth
+    table_data = []
+    for r in results:
+        table_data.append([
+            r["id"],
+            r["query"],  # Full query (not truncated)
+            r["expected_response"],  # Ground truth answer
+            ", ".join(r["relevant_games"]),  # Ground truth games
+            r["model_response"],  # Full model response (not truncated)
+            ", ".join(r["retrieved_game_names"][:5]),  # Top 5 retrieved games
+            r["retrieval_recall"],
+            r["retrieval_mrr"],
+            r["e2e_latency_sec"],
+            r["retriever_latency_sec"],
+        ])
+    
+    retrieval_table = wandb.Table(
+        columns=["ID", "Query", "Expected Response", "Relevant Games", "Model Response", "Retrieved Games", "Recall", "MRR", "E2E Latency", "Retriever Latency"],
+        data=table_data
+    )
+    wandb.log({"retrieval_results": retrieval_table})
 
 
 if __name__ == "__main__":

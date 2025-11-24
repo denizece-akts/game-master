@@ -116,12 +116,15 @@ def build_indices():
     print("Loading embedding model:", CONFIG["embedding_model"])
     emb_model = _load_embedding_model()
     use_normalize = CONFIG["normalize_embeddings"]
+    
+    topN = CONFIG["topN_for_subset"]
+    prefix = CONFIG["artifact_prefix"]
 
-    rev_faiss_path = OUTPUT_DIR / f"{CONFIG['artifact_prefix']}_faiss.index"
-    game_faiss_path = OUTPUT_DIR / f"{CONFIG['artifact_prefix']}_games_faiss.index"
-    games_unique_path = OUTPUT_DIR / f"{CONFIG['artifact_prefix']}_games_unique.parquet"
-    game_idmap_path = OUTPUT_DIR / f"{CONFIG['artifact_prefix']}_games_idmap.json"
-    rev_meta_path = OUTPUT_DIR / f"{CONFIG['artifact_prefix']}_meta.json"
+    rev_faiss_path = OUTPUT_DIR / f"{prefix}_TOP{topN}_faiss.index"
+    game_faiss_path = OUTPUT_DIR / f"{prefix}_TOP{topN}_games_faiss.index"
+    games_unique_path = OUTPUT_DIR / f"{prefix}_TOP{topN}_games_unique.parquet"
+    game_idmap_path = OUTPUT_DIR / f"{prefix}_TOP{topN}_games_idmap.json"
+    rev_meta_path = OUTPUT_DIR / f"{prefix}_TOP{topN}_meta.json"
 
     dim = emb_model.get_sentence_embedding_dimension()
     rev_base = faiss.IndexFlatIP(dim) if use_normalize else faiss.IndexFlatL2(dim)
@@ -205,10 +208,13 @@ def build_indices():
 
 
 def load_or_build_indices():
-    rev_faiss_path = OUTPUT_DIR / f"{CONFIG['artifact_prefix']}_faiss.index"
-    game_faiss_path = OUTPUT_DIR / f"{CONFIG['artifact_prefix']}_games_faiss.index"
-    games_unique_path = OUTPUT_DIR / f"{CONFIG['artifact_prefix']}_games_unique.parquet"
-    rev_meta_path = OUTPUT_DIR / f"{CONFIG['artifact_prefix']}_meta.json"
+    topN = CONFIG["topN_for_subset"]
+    prefix = CONFIG["artifact_prefix"]
+    
+    rev_faiss_path = OUTPUT_DIR / f"{prefix}_TOP{topN}_faiss.index"
+    game_faiss_path = OUTPUT_DIR / f"{prefix}_TOP{topN}_games_faiss.index"
+    games_unique_path = OUTPUT_DIR / f"{prefix}_TOP{topN}_games_unique.parquet"
+    rev_meta_path = OUTPUT_DIR / f"{prefix}_TOP{topN}_meta.json"
 
     games_unique_csv_path = games_unique_path.with_suffix(".csv")
 
@@ -263,7 +269,6 @@ def load_or_build_indices():
     if (
         cfg_sub.get("embedding_model") != CONFIG["embedding_model"]
         or cfg_sub.get("normalize_embeddings") != CONFIG["normalize_embeddings"]
-        or cfg_sub.get("topN_for_subset") != CONFIG["topN_for_subset"]
     ):
         print("Config affecting indices changed, rebuilding indices...")
         return build_indices()

@@ -24,8 +24,12 @@ def build_topN_subsets(desc_csv, reviews_csv, out_dir: Path, topN: int = 10):
     rev["_game_key"] = rev["game_name"].map(make_game_key)
     desc["_game_key"] = desc["name"].map(make_game_key)
 
+    # Filter reviews to only include games that exist in the description file
+    valid_games = set(desc["_game_key"].unique())
+    rev_valid = rev[rev["_game_key"].isin(valid_games)]
+
     top_keys = (
-        rev.groupby("_game_key")
+        rev_valid.groupby("_game_key")
         .size()
         .sort_values(ascending=False)
         .head(topN)
