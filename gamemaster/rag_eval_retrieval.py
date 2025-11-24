@@ -176,14 +176,16 @@ def main():
         "latency/p95_retriever_sec": p95_ret,
     })
     
-    # Create W&B table for detailed results (excluding large text fields)
+    # Create W&B table for detailed results with ground truth
     table_data = []
     for r in results:
         table_data.append([
             r["id"],
-            r["query"][:100],  # Truncate for readability
-            r["model_response"][:200],
-            ", ".join(r["retrieved_game_names"][:5]),
+            r["query"],  # Full query (not truncated)
+            r["expected_response"],  # Ground truth answer
+            ", ".join(r["relevant_games"]),  # Ground truth games
+            r["model_response"],  # Full model response (not truncated)
+            ", ".join(r["retrieved_game_names"][:5]),  # Top 5 retrieved games
             r["retrieval_recall"],
             r["retrieval_mrr"],
             r["e2e_latency_sec"],
@@ -191,7 +193,7 @@ def main():
         ])
     
     retrieval_table = wandb.Table(
-        columns=["ID", "Query", "Response", "Retrieved Games", "Recall", "MRR", "E2E Latency", "Retriever Latency"],
+        columns=["ID", "Query", "Expected Response", "Relevant Games", "Model Response", "Retrieved Games", "Recall", "MRR", "E2E Latency", "Retriever Latency"],
         data=table_data
     )
     wandb.log({"retrieval_results": retrieval_table})

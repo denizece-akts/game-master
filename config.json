@@ -29,6 +29,6 @@
   "wandb_api_key": "",
   "wandb_run_name": "qa_v2_top20_games_prompt_v2",
   "golden_set_filename": "rag_eval_golden_set_v2.jsonl",
-  "wandb_project": "gamemaster-rag-eval",
+  "wandb_project": "gamemaster-rag",
   "wandb_entity": null
 }

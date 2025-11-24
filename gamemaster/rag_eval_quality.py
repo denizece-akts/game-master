@@ -208,13 +208,14 @@ def main():
         "quality/mean_ground_truth_agreement": mean_gt_agree,
     })
     
-    # Create W&B table for quality results
+    # Create W&B table for quality results with ground truth
     table_data = []
     for r in scored_rows:
         table_data.append([
             r["id"],
-            r["query"][:100],
-            r["model_response"][:200],
+            r["query"],  # Full query (not truncated)
+            r["expected_response"],  # Ground truth answer
+            r["model_response"],  # Full model response (not truncated)
             r["answer_relevance"],
             r["context_relevance"],
             r["groundedness"],
@@ -222,7 +223,7 @@ def main():
         ])
     
     quality_table = wandb.Table(
-        columns=["ID", "Query", "Response", "Answer Rel", "Context Rel", "Groundedness", "GT Agreement"],
+        columns=["ID", "Query", "Expected Response", "Model Response", "Answer Rel", "Context Rel", "Groundedness", "GT Agreement"],
         data=table_data
     )
     wandb.log({"quality_results": quality_table})
