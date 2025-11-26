@@ -5,16 +5,16 @@ import pandas as pd
 import torch
 import wandb
 
-from .config import OUTPUT_DIR, CONFIG, DEVICE, GOLDEN_SET_PATH, WANDB_PROJECT, WANDB_ENTITY
-from .embeddings import load_or_build_indices
-from .llm import load_llm
-from .rag import RAGEngine
-from .utils import make_game_key
+from ..config import OUTPUT_DIR, CONFIG, DEVICE, QA_SET_PATH, WANDB_PROJECT, WANDB_ENTITY
+from ..services.embeddings import load_or_build_indices
+from ..services.llm import load_llm
+from ..core.engine import RAGEngine
+from ..utils.common import make_game_key
 
 
 def load_eval_qa():
     qa = []
-    with open(GOLDEN_SET_PATH, "r", encoding="utf-8") as f:
+    with open(QA_SET_PATH, "r", encoding="utf-8") as f:
         for line in f:
             qa.append(json.loads(line))
     return qa
@@ -91,14 +91,14 @@ def compute_recall_mrr(relevant_games, retrieved_game_names):
 
 
 def main():
-    # Initialize W&B if not already initialized
+
     if wandb.run is None:
         wandb.init(
             project=WANDB_PROJECT,
             entity=WANDB_ENTITY,
-            name=f"rag_eval_{GOLDEN_SET_PATH.stem}",
+            name=f"rag_eval_{QA_SET_PATH.stem}",
             config={
-                "golden_set": GOLDEN_SET_PATH.name,
+                "qa_set": QA_SET_PATH.name,
                 "top_k_games": CONFIG.get("top_k_games"),
                 "top_k_reviews": CONFIG.get("top_k_reviews"),
                 "llm_model": CONFIG.get("llm_model"),
@@ -150,7 +150,7 @@ def main():
     print(" JSONL:", results_jsonl_path)
     print(" CSV  :", results_csv_path)
 
-    # Calculate aggregate metrics
+
     mean_recall = df["retrieval_recall"].mean()
     mean_mrr = df["retrieval_mrr"].mean()
     mean_e2e = df["e2e_latency_sec"].mean()
@@ -166,7 +166,7 @@ def main():
     print("  Mean end-to-end latency (s):", mean_e2e)
     print("  Mean retriever latency (s) :", mean_ret)
 
-    # Log metrics to W&B
+
     wandb.log({
         "retrieval/mean_recall": mean_recall,
         "retrieval/mean_mrr": mean_mrr,
@@ -176,16 +176,16 @@ def main():
         "latency/p95_retriever_sec": p95_ret,
     })
     
-    # Create W&B table for detailed results with ground truth
+
     table_data = []
     for r in results:
         table_data.append([
             r["id"],
-            r["query"],  # Full query (not truncated)
-            r["expected_response"],  # Ground truth answer
-            ", ".join(r["relevant_games"]),  # Ground truth games
-            r["model_response"],  # Full model response (not truncated)
-            ", ".join(r["retrieved_game_names"][:5]),  # Top 5 retrieved games
+            r["query"],
+            r["expected_response"],
+            ", ".join(r["relevant_games"]),
+            r["model_response"],
+            ", ".join(r["retrieved_game_names"][:5]),
             r["retrieval_recall"],
             r["retrieval_mrr"],
             r["e2e_latency_sec"],

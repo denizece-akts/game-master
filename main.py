@@ -1,8 +1,8 @@
 import streamlit as st
 
-from gamemaster.embeddings import load_or_build_indices
-from gamemaster.llm import load_llm
-from gamemaster.rag import RAGEngine
+from gamemaster.services.embeddings import load_or_build_indices
+from gamemaster.services.llm import load_llm
+from gamemaster.core.engine import RAGEngine
 from gamemaster.config import DEVICE
 
 

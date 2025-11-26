@@ -1,10 +1,10 @@
 import sys
 
-from gamemaster.config import DEVICE
-from gamemaster.utils import print_versions_and_checksums
-from gamemaster.embeddings import load_or_build_indices
-from gamemaster.llm import load_llm
-from gamemaster.rag import RAGEngine
+from .config import DEVICE
+from .utils.common import print_versions_and_checksums
+from .services.embeddings import load_or_build_indices
+from .services.llm import load_llm
+from .core.engine import RAGEngine
 
 
 def main():

@@ -1,2 +1,2 @@
 from .config import CONFIG, DEVICE
-from .rag import RAGEngine
+from .core.engine import RAGEngine

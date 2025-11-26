@@ -5,7 +5,7 @@ from openai import OpenAI
 import torch
 import platform
 import wandb
-from .config import OUTPUT_DIR, OPENAI_API_KEY, DEVICE, WANDB_PROJECT, WANDB_ENTITY
+from ..config import OUTPUT_DIR, OPENAI_API_KEY, DEVICE, WANDB_PROJECT, WANDB_ENTITY
 
 try:
     import psutil
@@ -123,7 +123,7 @@ def get_system_info():
 
 
 def main():
-    # Initialize W&B if not already initialized
+
     if wandb.run is None:
         wandb.init(
             project=WANDB_PROJECT,
@@ -200,7 +200,7 @@ def main():
     print("  Mean retriever latency (s):", mean_ret)
     print("  P95  retriever latency (s):", p95_ret)
 
-    # Log quality metrics to W&B
+
     wandb.log({
         "quality/mean_answer_relevance": mean_ans_rel,
         "quality/mean_context_relevance": mean_ctx_rel,
@@ -208,14 +208,14 @@ def main():
         "quality/mean_ground_truth_agreement": mean_gt_agree,
     })
     
-    # Create W&B table for quality results with ground truth
+
     table_data = []
     for r in scored_rows:
         table_data.append([
             r["id"],
-            r["query"],  # Full query (not truncated)
-            r["expected_response"],  # Ground truth answer
-            r["model_response"],  # Full model response (not truncated)
+            r["query"],
+            r["expected_response"],
+            r["model_response"],
             r["answer_relevance"],
             r["context_relevance"],
             r["groundedness"],
@@ -249,7 +249,7 @@ def main():
 
     sys_info = get_system_info()
     
-    # Log system info to W&B
+
     wandb.config.update({
         "system/os": f"{sys_info['os_name']} {sys_info['os_release']}",
         "system/cpu": sys_info["cpu"],
