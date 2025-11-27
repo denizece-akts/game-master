@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import torch
 
-from .config import CONFIG, DEVICE
-from .utils import clamp_sentences, clamp_chars, normalize_whitespace
+from ..config import CONFIG, DEVICE
+from ..utils.common import clamp_sentences, clamp_chars, normalize_whitespace
 
 
 class RAGEngine:

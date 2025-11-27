@@ -3,8 +3,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .config import CONFIG, OUTPUT_DIR
-from .utils import (
+from ..config import CONFIG, OUTPUT_DIR
+from ..utils.common import (
     fix_mojibake,
     normalize_whitespace,
     parse_listlike,
@@ -24,7 +24,6 @@ def build_topN_subsets(desc_csv, reviews_csv, out_dir: Path, topN: int = 10):
     rev["_game_key"] = rev["game_name"].map(make_game_key)
     desc["_game_key"] = desc["name"].map(make_game_key)
 
-    # Filter reviews to only include games that exist in the description file
     valid_games = set(desc["_game_key"].unique())
     rev_valid = rev[rev["_game_key"].isin(valid_games)]
 
@@ -42,8 +41,8 @@ def build_topN_subsets(desc_csv, reviews_csv, out_dir: Path, topN: int = 10):
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    desc_name = f"games_description__TOP{topN}_GAMES.csv"
-    reviews_name = f"steam_game_reviews__TOP{topN}_GAMES.csv"
+    desc_name = f"games_description_TOP{topN}_GAMES.csv"
+    reviews_name = f"steam_game_reviews_TOP{topN}_GAMES.csv"
 
     desc_path = out_dir / desc_name
     reviews_path = out_dir / reviews_name

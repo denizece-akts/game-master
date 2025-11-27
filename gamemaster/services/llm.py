@@ -4,7 +4,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from huggingface_hub import snapshot_download
 
-from .config import CONFIG, HF_TOKEN, DEVICE
+from ..config import CONFIG, HF_TOKEN, DEVICE
 
 
 def _ensure_local_model():

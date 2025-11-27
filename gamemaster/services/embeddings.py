@@ -9,15 +9,15 @@ import torch
 from huggingface_hub import snapshot_download
 from sentence_transformers import SentenceTransformer
 
-from .config import CONFIG, OUTPUT_DIR, DEVICE, HF_TOKEN
-from .utils import (
+from ..config import CONFIG, OUTPUT_DIR, DEVICE, HF_TOKEN
+from ..utils.common import (
     clamp_sentences,
     clamp_chars,
     normalize_whitespace,
     _json_safe,
     sha256_file,
 )
-from .data import load_data, safe_read_csv
+from ..data.loader import load_data, safe_read_csv
 
 
 def _ensure_local_embedding_model() -> str:
