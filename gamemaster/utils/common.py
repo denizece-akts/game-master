@@ -177,6 +177,10 @@ def print_versions_and_checksums():
         ("huggingface_hub", "huggingface-hub"),
         ("dateparser", "dateparser"),
         ("Unidecode", "Unidecode"),
+        ("streamlit", "streamlit"),
+        ("wandb", "wandb"),
+        ("openai", "openai"),
+        ("psutil", "psutil"),
     ]
     for display, dist_name in dists:
         try:
