@@ -70,8 +70,6 @@ class RAGEngine:
     def _embed_history(self, history: list) -> np.ndarray:
         if not history:
             return None
-        # Format history into a single string or list of strings
-        # "User: ... Assistant: ..."
         text_blocks = []
         for msg in history:
             role = "User" if msg["role"] == "user" else "Assistant"
@@ -80,7 +78,6 @@ class RAGEngine:
         return self._embed_one(full_text)
 
     def stage1_get_games(self, user_query: str, k_probe: int = 50, history: list = None):
-        # mix_games = [weight_query, weight_history]
         w_query, w_hist = CONFIG.get("mix_games", [1.0, 0.0])
         
         q_vec = self._embed_one(user_query)
@@ -142,10 +139,8 @@ class RAGEngine:
     def stage2_get_reviews(
         self, user_query: str, game_signal: np.ndarray, selected_games, k_probe: int = 4096, history: list = None
     ):
-        # mix_reviews = [weight_query, weight_game_info, weight_history]
         mix_conf = CONFIG.get("mix_reviews", [0.7, 0.3, 0.0])
         if len(mix_conf) == 2:
-            # Backward compatibility or fallback
             wq, wg = mix_conf
             wh = 0.0
         else:
@@ -360,7 +355,6 @@ class RAGEngine:
         ]
         
         if history:
-            # Explicitly mention history presence and size to help the model
             turns = len(history) // 2
             history_intro = (
                 f"Conversation History: The following are the last {turns} turns. "
@@ -370,7 +364,6 @@ class RAGEngine:
             )
             messages.append({"role": "system", "content": history_intro})
             
-            # Enumerated history with explicit turn numbers
             current_turn = 1
             for i in range(0, len(history), 2):
                 if i+1 < len(history):
@@ -380,7 +373,6 @@ class RAGEngine:
                     messages.append({"role": "assistant", "content": f"[Turn {current_turn}] {asst_msg['content']}"})
                     current_turn += 1
                 else:
-                    # Dangling message (shouldn't happen with our logic, but safe to add)
                     messages.append(history[i])
 
         messages.append({"role": "user", "content": user_query})

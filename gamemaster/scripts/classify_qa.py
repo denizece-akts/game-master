@@ -8,16 +8,12 @@ def classify_item(item):
     query = item["query"].lower()
     history = item.get("history", [])
     
-    # 1. Follow-up: Has history
     if len(history) > 0:
         return "follow-up"
     
-    # 2. Comparison: specific keywords
-    # Matches: "how does x differ", "compare x and y", "difference between", "x vs y", "distinguishes", "separates"
     if any(k in query for k in ["differ", "compare", "difference", " vs ", "distinguishes", "separates"]):
         return "comparison"
         
-    # 3. Default to Factual
     return "factual"
 
 def main():
@@ -40,7 +36,6 @@ def main():
             counts[q_type] += 1
             new_items.append(item)
             
-    # Write back to file
     with open(QA_PATH, "w", encoding="utf-8") as f:
         for item in new_items:
             f.write(json.dumps(item, ensure_ascii=False) + "\n")

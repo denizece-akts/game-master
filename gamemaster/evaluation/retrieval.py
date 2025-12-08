@@ -40,7 +40,7 @@ def timed_generate_rag_answer(engine: RAGEngine, user_query: str, history: list 
     t0 = perf_counter()
     t_ret_start = perf_counter()
 
-    stage1_hits = engine.stage1_get_games(user_query, k_probe=50)
+    stage1_hits = engine.stage1_get_games(user_query, k_probe=50, history=history)
     if not stage1_hits:
         context_text = ""
         t_ret_end = perf_counter()
@@ -48,7 +48,7 @@ def timed_generate_rag_answer(engine: RAGEngine, user_query: str, history: list 
     else:
         g_signal = engine.build_game_signal(stage1_hits)
         stage2_hits = engine.stage2_get_reviews(
-            user_query, g_signal, stage1_hits, k_probe=4096
+            user_query, g_signal, stage1_hits, k_probe=4096, history=history
         )
         t_ret_end = perf_counter()
         context_text = engine.format_two_stage_context(stage1_hits, stage2_hits)
@@ -127,8 +127,9 @@ def main():
         q = item["query"]
         print(f"[{i}/{len(eval_qa)}] Asking:", q)
 
+        history = item.get("history", [])
         answer, retrieved_games, prompt, ctx_block, e2e_lat, ret_lat = timed_generate_rag_answer(
-            engine, q
+            engine, q, history=history
         )
         recall, mrr = compute_recall_mrr(item.get("relevant_games", []), retrieved_games)
 
@@ -188,7 +189,6 @@ def main():
         "latency/p95_retriever_sec": p95_ret,
     })
 
-    # Breakdown by type
     if "type" in df.columns:
         print("\nMetrics by Question Type:")
         for q_type, group in df.groupby("type"):

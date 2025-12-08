@@ -43,7 +43,7 @@
     "context_template": "You are given {n} retrieved chunks from the dataset.\n\n{context}"
   },
   "wandb": {
-    "wandb_project": "gamemaster-sprint4",
+    "wandb_project": "gamemaster-testt",
     "wandb_entity": null,
     "wandb_run_name": "qa_v3_top20_games"
   },

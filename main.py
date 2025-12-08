@@ -55,13 +55,10 @@ def main():
             st.markdown(user_input)
         st.session_state["messages"].append({"role": "user", "content": user_input})
 
-        # Get last N turns (configured) excluding the current user input, ONLY if enabled
         history = None
         if enable_history:
             turns = CONFIG.get("max_history_turns", 3)
-            # Each turn is 2 messages (user + assistant)
             msg_count = turns * 2
-            # Use separate variable for sliced list to process
             candidate_history = st.session_state["messages"][:-1]
             if msg_count > 0:
                 history = candidate_history[-msg_count:]

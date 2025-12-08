@@ -40,8 +40,6 @@ HF_TOKEN = CONFIG.get("hf_token") or os.environ.get("HF_TOKEN", "")
 OPENAI_API_KEY = CONFIG.get("openai_api_key") or os.environ.get("OPENAI_API_KEY", "")
 WANDB_API_KEY = CONFIG.get("wandb_api_key") or os.environ.get("WANDB_API_KEY", "")
 
-# Inject Kaggle credentials if present
-# Note: CONFIG is flattened, so we access keys directly
 if CONFIG.get("kaggle_username"):
     os.environ["KAGGLE_USERNAME"] = CONFIG["kaggle_username"]
 if CONFIG.get("kaggle_key"):

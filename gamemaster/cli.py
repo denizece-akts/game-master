@@ -32,12 +32,9 @@ def main():
     args = parser.parse_args()
 
     if args.query:
-        # Single query mode
         q = " ".join(args.query)
-        # For single query mode, history doesn't make much sense unless we maintain state across runs (which we don't)
         engine.ask(q, show_context=False)
     else:
-        # Interactive mode
         from .config import CONFIG
         
         print("\n" + "="*50)
@@ -68,7 +65,6 @@ def main():
                     print("[History cleared]")
                     continue
 
-                # Use last N turns IF history enabled, but we ALWAYS track it
                 current_history = None
                 if args.history and history:
                     msg_count = max_turns * 2
@@ -81,7 +77,6 @@ def main():
                 
                 print(f"GameMaster: {answer}")
                 
-                # ALWAYS update history
                 history.append({"role": "user", "content": user_input})
                 history.append({"role": "assistant", "content": answer})
 

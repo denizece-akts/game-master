@@ -208,7 +208,6 @@ def main():
         "quality/mean_ground_truth_agreement": mean_gt_agree,
     })
 
-    # Breakdown by type
     if "type" in df_scores.columns:
         print("\nQuality Metrics by Question Type:")
         for q_type, group in df_scores.groupby("type"):
