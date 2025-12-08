@@ -36,7 +36,7 @@ def load_engine():
     return engine
 
 
-def timed_generate_rag_answer(engine: RAGEngine, user_query: str):
+def timed_generate_rag_answer(engine: RAGEngine, user_query: str, history: list = None):
     t0 = perf_counter()
     t_ret_start = perf_counter()
 
@@ -44,7 +44,7 @@ def timed_generate_rag_answer(engine: RAGEngine, user_query: str):
     if not stage1_hits:
         context_text = ""
         t_ret_end = perf_counter()
-        prompt, _, ctx_block = engine.build_messages(user_query, context_text)
+        prompt, _, ctx_block = engine.build_messages(user_query, context_text, history=history)
     else:
         g_signal = engine.build_game_signal(stage1_hits)
         stage2_hits = engine.stage2_get_reviews(
@@ -52,7 +52,7 @@ def timed_generate_rag_answer(engine: RAGEngine, user_query: str):
         )
         t_ret_end = perf_counter()
         context_text = engine.format_two_stage_context(stage1_hits, stage2_hits)
-        prompt, _, ctx_block = engine.build_messages(user_query, context_text)
+        prompt, _, ctx_block = engine.build_messages(user_query, context_text, history=history)
 
     inputs = engine.tokenizer(prompt, return_tensors="pt").to(DEVICE)
     with torch.inference_mode():
@@ -123,6 +123,7 @@ def main():
 
         r = {
             "id": i,
+            "type": item.get("type", "unknown"),
             "query": q,
             "expected_response": item.get("expected_response", ""),
             "relevant_games": item.get("relevant_games", []),
@@ -175,6 +176,18 @@ def main():
         "latency/mean_retriever_sec": mean_ret,
         "latency/p95_retriever_sec": p95_ret,
     })
+
+    # Breakdown by type
+    if "type" in df.columns:
+        print("\nMetrics by Question Type:")
+        for q_type, group in df.groupby("type"):
+            t_recall = group["retrieval_recall"].mean()
+            t_mrr = group["retrieval_mrr"].mean()
+            print(f"  {q_type.capitalize()}: Recall={t_recall:.4f}, MRR={t_mrr:.4f} (n={len(group)})")
+            wandb.log({
+                f"retrieval/{q_type}_recall": t_recall,
+                f"retrieval/{q_type}_mrr": t_mrr
+            })
     
 
     table_data = []

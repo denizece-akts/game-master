@@ -3,7 +3,7 @@ import streamlit as st
 from gamemaster.services.embeddings import load_or_build_indices
 from gamemaster.services.llm import load_llm
 from gamemaster.core.engine import RAGEngine
-from gamemaster.config import DEVICE
+from gamemaster.config import DEVICE, CONFIG
 from gamemaster.data.downloader import ensure_dataset
 
 
@@ -39,6 +39,12 @@ def main():
     if "messages" not in st.session_state:
         st.session_state["messages"] = []
 
+    with st.sidebar:
+        enable_history = st.checkbox("Enable Conversation History", value=False)
+        if st.button("Reset History"):
+            st.session_state["messages"] = []
+            st.rerun()
+
     for msg in st.session_state["messages"]:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
@@ -49,7 +55,20 @@ def main():
             st.markdown(user_input)
         st.session_state["messages"].append({"role": "user", "content": user_input})
 
-        answer, stage1_hits, prompt, ctx_text = engine.generate_rag_answer(user_input)
+        # Get last N turns (configured) excluding the current user input, ONLY if enabled
+        history = None
+        if enable_history:
+            turns = CONFIG.get("max_history_turns", 3)
+            # Each turn is 2 messages (user + assistant)
+            msg_count = turns * 2
+            # Use separate variable for sliced list to process
+            candidate_history = st.session_state["messages"][:-1]
+            if msg_count > 0:
+                history = candidate_history[-msg_count:]
+            else:
+                history = []
+        
+        answer, stage1_hits, prompt, ctx_text = engine.generate_rag_answer(user_input, history=history)
 
         print("\n" + "=" * 80)
         print("QUESTION (from Streamlit)")

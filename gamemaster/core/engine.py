@@ -309,15 +309,40 @@ class RAGEngine:
                 idx += 1
         return "\n".join(lines).strip()
 
-    def build_messages(self, user_query: str, context_text: str):
+    def build_messages(self, user_query: str, context_text: str, history: list = None):
         n_blocks = context_text.count("[GAME ") + context_text.count("[REVIEW ")
         ctx_block = CONFIG["context_template"].format(n=n_blocks, context=context_text)
 
         messages = [
             {"role": "system", "content": CONFIG["system_instruction"]},
             {"role": "system", "content": f"<CONTEXT>\n{ctx_block}\n</CONTEXT>"},
-            {"role": "user", "content": user_query},
         ]
+        
+        if history:
+            # Explicitly mention history presence and size to help the model
+            turns = len(history) // 2
+            history_intro = (
+                f"Conversation History: The following are the last {turns} turns. "
+                f"Note that Turn {turns} is the most recent. "
+                "Use this history to resolve pronouns (e.g., 'it' refers to the subject of the last turn) "
+                "or follow-ups in the final user query."
+            )
+            messages.append({"role": "system", "content": history_intro})
+            
+            # Enumerated history with explicit turn numbers
+            current_turn = 1
+            for i in range(0, len(history), 2):
+                if i+1 < len(history):
+                    user_msg = history[i]
+                    asst_msg = history[i+1]
+                    messages.append({"role": "user", "content": f"[Turn {current_turn}] {user_msg['content']}"})
+                    messages.append({"role": "assistant", "content": f"[Turn {current_turn}] {asst_msg['content']}"})
+                    current_turn += 1
+                else:
+                    # Dangling message (shouldn't happen with our logic, but safe to add)
+                    messages.append(history[i])
+
+        messages.append({"role": "user", "content": user_query})
 
         def render(ms):
             return self.tokenizer.apply_chat_template(
@@ -347,18 +372,18 @@ class RAGEngine:
 
         return prompt, messages, ctx_block
 
-    def generate_rag_answer(self, user_query: str):
+    def generate_rag_answer(self, user_query: str, history: list = None):
         stage1_hits = self.stage1_get_games(user_query, k_probe=50)
         if not stage1_hits:
             context_text = ""
-            prompt, _, ctx_block = self.build_messages(user_query, context_text)
+            prompt, _, ctx_block = self.build_messages(user_query, context_text, history)
         else:
             g_signal = self.build_game_signal(stage1_hits)
             stage2_hits = self.stage2_get_reviews(
                 user_query, g_signal, stage1_hits, k_probe=4096
             )
             context_text = self.format_two_stage_context(stage1_hits, stage2_hits)
-            prompt, _, ctx_block = self.build_messages(user_query, context_text)
+            prompt, _, ctx_block = self.build_messages(user_query, context_text, history)
 
         inputs = self.tokenizer(prompt, return_tensors="pt").to(DEVICE)
         with torch.inference_mode():
@@ -375,8 +400,8 @@ class RAGEngine:
         ).strip()
         return assistant_reply, stage1_hits, prompt, context_text
 
-    def ask(self, question: str, show_context: bool = False, show_raw_context: bool = False):
-        answer, _, prompt, ctx_text = self.generate_rag_answer(question)
+    def ask(self, question: str, show_context: bool = False, show_raw_context: bool = False, history: list = None):
+        answer, _, prompt, ctx_text = self.generate_rag_answer(question, history=history)
 
         print("\n" + "=" * 80)
         print("QUESTION")

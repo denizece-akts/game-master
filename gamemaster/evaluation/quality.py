@@ -207,7 +207,19 @@ def main():
         "quality/mean_groundedness": mean_ground,
         "quality/mean_ground_truth_agreement": mean_gt_agree,
     })
-    
+
+    # Breakdown by type
+    if "type" in df_scores.columns:
+        print("\nQuality Metrics by Question Type:")
+        for q_type, group in df_scores.groupby("type"):
+            t_ans_rel = group["answer_relevance"].mean()
+            t_ground = group["groundedness"].mean()
+            print(f"  {q_type.capitalize()}: AnsRel={t_ans_rel:.4f}, Ground={t_ground:.4f} (n={len(group)})")
+            wandb.log({
+                f"quality/{q_type}_answer_relevance": t_ans_rel,
+                f"quality/{q_type}_groundedness": t_ground
+            })
+     
 
     table_data = []
     for r in scored_rows:
@@ -285,9 +297,18 @@ def main():
     lines.append(f"  Mean groundedness: {mean_ground}")
     lines.append(f"  Mean ground truth semantic agreement: {mean_gt_agree}")
     lines.append("")
+    lines.append("")
     lines.append("Retrieval (games, Stage-1):")
     lines.append(f"  Mean Recall: {mean_recall}")
     lines.append(f"  Mean MRR   : {mean_mrr}")
+
+    if "type" in df_scores.columns:
+        lines.append("")
+        lines.append("Breakdown by Type:")
+        for q_type, group in df_scores.groupby("type"):
+            t_ans_rel = group["answer_relevance"].mean()
+            t_recall = group["retrieval_recall"].mean()
+            lines.append(f"  {q_type.capitalize()} (n={len(group)}): AnsRel={t_ans_rel:.4f}, Recall={t_recall:.4f}")
     lines.append("")
     lines.append("System Measures:")
     lines.append(f"  Mean end-to-end latency (s): {mean_e2e}")

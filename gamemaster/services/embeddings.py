@@ -52,8 +52,12 @@ def _load_embedding_model() -> SentenceTransformer:
 
 
 def emb_encode(emb_model: SentenceTransformer, texts, use_normalize: bool, bsz: int = 64):
-    outs = []
+    total = len(texts)
+    print(f"Start encoding {total} items...")
     for i in range(0, len(texts), bsz):
+        if i > 0 and i % (bsz * 50) == 0:
+            print(f"  ... encoded {i}/{total}")
+
         sub = texts[i : i + bsz]
         if not sub:
             continue
@@ -66,6 +70,7 @@ def emb_encode(emb_model: SentenceTransformer, texts, use_normalize: bool, bsz: 
                 show_progress_bar=False,
             ).astype(np.float32)
         outs.append(v)
+    print(f"Finished encoding {total} items.")
     if outs:
         return np.vstack(outs)
     return np.zeros((0, emb_model.get_sentence_embedding_dimension()), dtype=np.float32)
