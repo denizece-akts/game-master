@@ -92,25 +92,32 @@ def compute_recall_mrr(relevant_games, retrieved_game_names):
 
 def main():
 
+    run_config = {
+        "qa_set": QA_SET_PATH.name,
+        "top_k_games": CONFIG.get("top_k_games"),
+        "top_k_reviews": CONFIG.get("top_k_reviews"),
+        "mix_games_query": CONFIG.get("mix_games", [0.8, 0.2])[0],
+        "mix_games_hist": CONFIG.get("mix_games", [0.8, 0.2])[1],
+        "mix_reviews_query": CONFIG.get("mix_reviews", [0.6, 0.3, 0.1])[0],
+        "mix_reviews_game": CONFIG.get("mix_reviews", [0.6, 0.3, 0.1])[1],
+        "mix_reviews_hist": CONFIG.get("mix_reviews", [0.6, 0.3, 0.1])[2] if len(CONFIG.get("mix_reviews", [])) > 2 else 0.0,
+        "topN_for_subset": CONFIG.get("topN_for_subset"),
+        "max_history_turns": CONFIG.get("max_history_turns"),
+        "llm_model": CONFIG.get("llm_model"),
+        "embedding_model": CONFIG.get("embedding_model"),
+        "llm_max_new_tokens": CONFIG.get("llm_max_new_tokens"),
+        "llm_temperature": CONFIG.get("llm_temperature"),
+    }
+
     if wandb.run is None:
         wandb.init(
             project=WANDB_PROJECT,
             entity=WANDB_ENTITY,
             name=f"rag_eval_{QA_SET_PATH.stem}",
-            config={
-                "qa_set": QA_SET_PATH.name,
-                "top_k_games": CONFIG.get("top_k_games"),
-                "top_k_reviews": CONFIG.get("top_k_reviews"),
-                "mix_games": CONFIG.get("mix_games"),
-                "mix_reviews": CONFIG.get("mix_reviews"),
-                "topN_for_subset": CONFIG.get("topN_for_subset"),
-                "max_history_turns": CONFIG.get("max_history_turns"),
-                "llm_model": CONFIG.get("llm_model"),
-                "embedding_model": CONFIG.get("embedding_model"),
-                "llm_max_new_tokens": CONFIG.get("llm_max_new_tokens"),
-                "llm_temperature": CONFIG.get("llm_temperature"),
-            },
+            config=run_config,
         )
+    else:
+        wandb.config.update(run_config, allow_val_change=True)
     
     eval_qa = load_eval_qa()
     engine = load_engine()
