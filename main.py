@@ -4,6 +4,7 @@ from gamemaster.services.embeddings import load_or_build_indices
 from gamemaster.services.llm import load_llm
 from gamemaster.core.engine import RAGEngine
 from gamemaster.config import DEVICE
+from gamemaster.data.downloader import ensure_dataset
 
 
 @st.cache_resource
@@ -32,6 +33,7 @@ def main():
     st.markdown("## 🎮 GameMaster ChatBot")
     st.caption(f"Device: `{DEVICE}` — Ask questions about the games.")
 
+    ensure_dataset()
     engine = load_engine()
 
     if "messages" not in st.session_state:

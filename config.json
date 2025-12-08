@@ -7,7 +7,9 @@
   "credentials": {
     "hf_token": "",
     "openai_api_key": "",
-    "wandb_api_key": ""
+    "wandb_api_key": "",
+    "kaggle_username": "",
+    "kaggle_key": ""
   },
   "models": {
     "embedding_model": "BAAI/bge-small-en-v1.5",
