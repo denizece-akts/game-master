@@ -28,10 +28,14 @@
     "artifact_prefix": "steam_reviews_demo",
     "top_k_games": 3,
     "top_k_reviews": 10,
-    "alpha_games": 1.0,
+    "mix_games": [
+      0.8,
+      0.2
+    ],
     "mix_reviews": [
-      0.7,
-      0.3
+      0.6,
+      0.3,
+      0.1
     ]
   },
   "prompts": {

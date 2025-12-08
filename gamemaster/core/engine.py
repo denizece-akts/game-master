@@ -67,10 +67,34 @@ class RAGEngine:
         D, I = index.search(qv.astype(np.float32), k)
         return D[0], I[0]
 
-    def stage1_get_games(self, user_query: str, k_probe: int = 50):
+    def _embed_history(self, history: list) -> np.ndarray:
+        if not history:
+            return None
+        # Format history into a single string or list of strings
+        # "User: ... Assistant: ..."
+        text_blocks = []
+        for msg in history:
+            role = "User" if msg["role"] == "user" else "Assistant"
+            text_blocks.append(f"{role}: {msg['content']}")
+        full_text = " ".join(text_blocks)
+        return self._embed_one(full_text)
+
+    def stage1_get_games(self, user_query: str, k_probe: int = 50, history: list = None):
+        # mix_games = [weight_query, weight_history]
+        w_query, w_hist = CONFIG.get("mix_games", [1.0, 0.0])
+        
         q_vec = self._embed_one(user_query)
-        mix = self._norm(q_vec) if self.use_normalize else q_vec
-        D, I = self._faiss_search(self.game_index, mix, k_probe)
+        final_vec = w_query * q_vec
+        
+        if history and w_hist > 0.0:
+            h_vec = self._embed_history(history)
+            if h_vec is not None:
+                final_vec += w_hist * h_vec
+        
+        if self.use_normalize:
+            final_vec = self._norm(final_vec)
+
+        D, I = self._faiss_search(self.game_index, final_vec, k_probe)
 
         seen = set()
         hits = []
@@ -116,15 +140,32 @@ class RAGEngine:
         return self._norm(mean) if self.use_normalize else mean
 
     def stage2_get_reviews(
-        self, user_query: str, game_signal: np.ndarray, selected_games, k_probe: int = 4096
+        self, user_query: str, game_signal: np.ndarray, selected_games, k_probe: int = 4096, history: list = None
     ):
-        wq, wg = CONFIG["mix_reviews"]
-        q_vec = self._embed_one(user_query)
-        g_vec = game_signal.astype(np.float32)
-        mix = wq * q_vec + wg * g_vec
-        mix = self._norm(mix) if self.use_normalize else mix
+        # mix_reviews = [weight_query, weight_game_info, weight_history]
+        mix_conf = CONFIG.get("mix_reviews", [0.7, 0.3, 0.0])
+        if len(mix_conf) == 2:
+            # Backward compatibility or fallback
+            wq, wg = mix_conf
+            wh = 0.0
+        else:
+            wq, wg, wh = mix_conf
 
-        D, I = self._faiss_search(self.rev_index, mix, k_probe)
+        q_vec = self._embed_one(user_query)
+        final_vec = wq * q_vec
+        
+        g_vec = game_signal.astype(np.float32)
+        final_vec += wg * g_vec
+        
+        if history and wh > 0.0:
+            h_vec = self._embed_history(history)
+            if h_vec is not None:
+                final_vec += wh * h_vec
+        
+        if self.use_normalize:
+            final_vec = self._norm(final_vec)
+
+        D, I = self._faiss_search(self.rev_index, final_vec, k_probe)
 
         total_needed = CONFIG["top_k_reviews"]
         if total_needed <= 0:
@@ -373,14 +414,14 @@ class RAGEngine:
         return prompt, messages, ctx_block
 
     def generate_rag_answer(self, user_query: str, history: list = None):
-        stage1_hits = self.stage1_get_games(user_query, k_probe=50)
+        stage1_hits = self.stage1_get_games(user_query, k_probe=50, history=history)
         if not stage1_hits:
             context_text = ""
-            prompt, _, ctx_block = self.build_messages(user_query, context_text, history)
+            prompt, _, ctx_block = self.build_messages(user_query, context_text, history=history)
         else:
             g_signal = self.build_game_signal(stage1_hits)
             stage2_hits = self.stage2_get_reviews(
-                user_query, g_signal, stage1_hits, k_probe=4096
+                user_query, g_signal, stage1_hits, k_probe=4096, history=history
             )
             context_text = self.format_two_stage_context(stage1_hits, stage2_hits)
             prompt, _, ctx_block = self.build_messages(user_query, context_text, history)
