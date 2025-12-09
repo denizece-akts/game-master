@@ -33,7 +33,6 @@ def main():
     st.markdown("## 🎮 GameMaster ChatBot")
     st.caption(f"Device: `{DEVICE}` — Ask questions about the games.")
 
-    ensure_dataset()
     engine = load_engine()
 
     if "messages" not in st.session_state:

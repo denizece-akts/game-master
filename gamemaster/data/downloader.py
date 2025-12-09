@@ -1,11 +1,17 @@
 import os
 import shutil
 from pathlib import Path
+from ..config import CONFIG
 
-def ensure_dataset(output_dir: str = "./dataset"):
+def ensure_dataset(output_dir: str = None):
     """
     Checks if the dataset exists. If not, downloads it using kagglehub and moves files to output_dir.
     """
+    if output_dir is None:
+        # derive from config
+        csv_path = Path(CONFIG["desc_csv_path_full"])
+        output_dir = csv_path.parent
+
     output_path = Path(output_dir)
     games_csv = output_path / "games_description.csv"
     reviews_csv = output_path / "steam_game_reviews.csv"
