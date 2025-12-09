@@ -358,20 +358,17 @@ class RAGEngine:
             turns = len(history) // 2
             history_intro = (
                 f"Conversation History: The following are the last {turns} turns. "
-                f"Note that Turn {turns} is the most recent. "
                 "Use this history to resolve pronouns (e.g., 'it' refers to the subject of the last turn) "
                 "or follow-ups in the final user query."
             )
             messages.append({"role": "system", "content": history_intro})
             
-            current_turn = 1
             for i in range(0, len(history), 2):
                 if i+1 < len(history):
                     user_msg = history[i]
                     asst_msg = history[i+1]
-                    messages.append({"role": "user", "content": f"[Turn {current_turn}] {user_msg['content']}"})
-                    messages.append({"role": "assistant", "content": f"[Turn {current_turn}] {asst_msg['content']}"})
-                    current_turn += 1
+                    messages.append({"role": "user", "content": user_msg['content']})
+                    messages.append({"role": "assistant", "content": asst_msg['content']})
                 else:
                     messages.append(history[i])
 
