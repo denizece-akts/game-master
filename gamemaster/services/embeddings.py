@@ -1,6 +1,8 @@
 import os
 import json
 from pathlib import Path
+import shutil
+import pickle
 
 import faiss
 import numpy as np
@@ -10,6 +12,7 @@ from huggingface_hub import snapshot_download
 from sentence_transformers import SentenceTransformer
 
 from ..config import CONFIG, OUTPUT_DIR, DEVICE, HF_TOKEN
+from ..data.downloader import ensure_dataset
 from ..utils.common import (
     clamp_sentences,
     clamp_chars,
@@ -52,22 +55,24 @@ def _load_embedding_model() -> SentenceTransformer:
 
 
 def emb_encode(emb_model: SentenceTransformer, texts, use_normalize: bool, bsz: int = 64):
-    outs = []
+    total = len(texts)
+    all_embeddings = []
+    print(f"Start encoding {total} items...")
     for i in range(0, len(texts), bsz):
-        sub = texts[i : i + bsz]
-        if not sub:
+        if i > 0 and i % (bsz * 50) == 0:
+            print(f"  ... encoded {i}/{total}")
+
+        texts_batch = texts[i : i + bsz]
+        if not texts_batch:
             continue
         with torch.inference_mode():
-            v = emb_model.encode(
-                sub,
-                convert_to_numpy=True,
-                normalize_embeddings=use_normalize,
-                batch_size=min(bsz, len(sub)),
-                show_progress_bar=False,
-            ).astype(np.float32)
-        outs.append(v)
-    if outs:
-        return np.vstack(outs)
+            chunk_embeddings = emb_model.encode(texts_batch, normalize_embeddings=use_normalize).astype(np.float32)
+        all_embeddings.append(chunk_embeddings)
+    
+    print(f"Finished encoding {total} items.")
+    print(f"Finished encoding {total} items.")
+    if all_embeddings:
+        return np.vstack(all_embeddings)
     return np.zeros((0, emb_model.get_sentence_embedding_dimension()), dtype=np.float32)
 
 
@@ -208,6 +213,7 @@ def build_indices():
 
 
 def load_or_build_indices():
+    ensure_dataset()
     topN = CONFIG["topN_for_subset"]
     prefix = CONFIG["artifact_prefix"]
     

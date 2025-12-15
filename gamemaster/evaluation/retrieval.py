@@ -36,23 +36,23 @@ def load_engine():
     return engine
 
 
-def timed_generate_rag_answer(engine: RAGEngine, user_query: str):
+def timed_generate_rag_answer(engine: RAGEngine, user_query: str, history: list = None):
     t0 = perf_counter()
     t_ret_start = perf_counter()
 
-    stage1_hits = engine.stage1_get_games(user_query, k_probe=50)
+    stage1_hits = engine.stage1_get_games(user_query, k_probe=50, history=history)
     if not stage1_hits:
         context_text = ""
         t_ret_end = perf_counter()
-        prompt, _, ctx_block = engine.build_messages(user_query, context_text)
+        prompt, _, ctx_block = engine.build_messages(user_query, context_text, history=history)
     else:
         g_signal = engine.build_game_signal(stage1_hits)
         stage2_hits = engine.stage2_get_reviews(
-            user_query, g_signal, stage1_hits, k_probe=4096
+            user_query, g_signal, stage1_hits, k_probe=4096, history=history
         )
         t_ret_end = perf_counter()
         context_text = engine.format_two_stage_context(stage1_hits, stage2_hits)
-        prompt, _, ctx_block = engine.build_messages(user_query, context_text)
+        prompt, _, ctx_block = engine.build_messages(user_query, context_text, history=history)
 
     inputs = engine.tokenizer(prompt, return_tensors="pt").to(DEVICE)
     with torch.inference_mode():
@@ -92,21 +92,32 @@ def compute_recall_mrr(relevant_games, retrieved_game_names):
 
 def main():
 
+    run_config = {
+        "qa_set": QA_SET_PATH.name,
+        "top_k_games": CONFIG.get("top_k_games"),
+        "top_k_reviews": CONFIG.get("top_k_reviews"),
+        "mix_games_query": CONFIG.get("mix_games", [0.8, 0.2])[0],
+        "mix_games_hist": CONFIG.get("mix_games", [0.8, 0.2])[1],
+        "mix_reviews_query": CONFIG.get("mix_reviews", [0.6, 0.3, 0.1])[0],
+        "mix_reviews_game": CONFIG.get("mix_reviews", [0.6, 0.3, 0.1])[1],
+        "mix_reviews_hist": CONFIG.get("mix_reviews", [0.6, 0.3, 0.1])[2] if len(CONFIG.get("mix_reviews", [])) > 2 else 0.0,
+        "topN_for_subset": CONFIG.get("topN_for_subset"),
+        "max_history_turns": CONFIG.get("max_history_turns"),
+        "llm_model": CONFIG.get("llm_model"),
+        "embedding_model": CONFIG.get("embedding_model"),
+        "llm_max_new_tokens": CONFIG.get("llm_max_new_tokens"),
+        "llm_temperature": CONFIG.get("llm_temperature"),
+    }
+
     if wandb.run is None:
         wandb.init(
             project=WANDB_PROJECT,
             entity=WANDB_ENTITY,
             name=f"rag_eval_{QA_SET_PATH.stem}",
-            config={
-                "qa_set": QA_SET_PATH.name,
-                "top_k_games": CONFIG.get("top_k_games"),
-                "top_k_reviews": CONFIG.get("top_k_reviews"),
-                "llm_model": CONFIG.get("llm_model"),
-                "embedding_model": CONFIG.get("embedding_model"),
-                "llm_max_new_tokens": CONFIG.get("llm_max_new_tokens"),
-                "llm_temperature": CONFIG.get("llm_temperature"),
-            },
+            config=run_config,
         )
+    else:
+        wandb.config.update(run_config, allow_val_change=True)
     
     eval_qa = load_eval_qa()
     engine = load_engine()
@@ -116,13 +127,15 @@ def main():
         q = item["query"]
         print(f"[{i}/{len(eval_qa)}] Asking:", q)
 
+        history = item.get("history", [])
         answer, retrieved_games, prompt, ctx_block, e2e_lat, ret_lat = timed_generate_rag_answer(
-            engine, q
+            engine, q, history=history
         )
         recall, mrr = compute_recall_mrr(item.get("relevant_games", []), retrieved_games)
 
         r = {
             "id": i,
+            "type": item.get("type", "unknown"),
             "query": q,
             "expected_response": item.get("expected_response", ""),
             "relevant_games": item.get("relevant_games", []),
@@ -175,6 +188,17 @@ def main():
         "latency/mean_retriever_sec": mean_ret,
         "latency/p95_retriever_sec": p95_ret,
     })
+
+    if "type" in df.columns:
+        print("\nMetrics by Question Type:")
+        for q_type, group in df.groupby("type"):
+            t_recall = group["retrieval_recall"].mean()
+            t_mrr = group["retrieval_mrr"].mean()
+            print(f"  {q_type.capitalize()}: Recall={t_recall:.4f}, MRR={t_mrr:.4f} (n={len(group)})")
+            wandb.log({
+                f"retrieval/{q_type}_recall": t_recall,
+                f"retrieval/{q_type}_mrr": t_mrr
+            })
     
 
     table_data = []
